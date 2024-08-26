@@ -2,7 +2,9 @@
 
 
 add_executable(bolt_tests main.cpp
-    test_bolt.cpp)
+    test_bolt.cpp
+    #test_value.cpp
+)
 
 # Link the bolt library and doctest to the test executable
 target_link_libraries(bolt_tests PRIVATE bolt)

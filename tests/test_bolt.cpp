@@ -86,4 +86,35 @@ namespace bolt
 
         
     }
+
+
+    TEST_CASE("BigListArray[int]")
+    {
+        // the inner array
+        std::vector<int> flat_data = {1, 2, 3, 4, 5};
+        std::vector<uint8_t> flat_validity = {1,1,1,0,1};
+        auto flat_values = std::make_shared<NumericArray<int>>(flat_data, flat_validity);
+
+        // the list array
+        std::vector<int> sizes = {2, 1, 2};
+        std::vector<uint8_t> validity = {1,1,1};
+        BigListArray list_array(flat_values, sizes, validity);
+
+        auto child_array = list_array.values();
+        CHECK(child_array->size() == 5);
+
+        auto child_typed = std::static_pointer_cast<NumericArray<int>>(child_array);
+        CHECK(child_typed->size() == 5);
+        CHECK(child_typed->is_valid(0));
+        CHECK(child_typed->is_valid(1));
+        CHECK(child_typed->is_valid(2));
+        CHECK(!child_typed->is_valid(3));   
+        CHECK(child_typed->is_valid(4));
+
+        for(std::size_t i = 0; i < list_array.size(); i++)
+        {
+            CHECK(list_array.list_size(i) == sizes[i]);
+        }
+    }
+
 }  // namespace bolt
