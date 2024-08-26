@@ -25,7 +25,7 @@ namespace bolt
         bool is_valid(std::size_t index) const;
 
         std::size_t size() const;
-        std::shared_ptr<ArrayData> array_data() const;s
+        std::shared_ptr<ArrayData> array_data() const;
         protected:
 
         std::shared_ptr<ArrayData> m_data;
