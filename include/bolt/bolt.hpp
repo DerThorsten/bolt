@@ -14,7 +14,6 @@
 namespace bolt
 { 
 
-
     class Array
     {
         public:
@@ -52,7 +51,7 @@ namespace bolt
     template< bool BIG> // either int32_t or int64_t offsets
     class ListArrayImpl : public  Array
     {   
-        public:
+        private:
         using offset_type = std::conditional_t<BIG, std::int64_t, std::int32_t>;
 
         template<std::ranges::range T, std::ranges::range U>
@@ -65,9 +64,11 @@ namespace bolt
             list_array_data->add_child(values->array_data());
 
             // buffer for validity
-            auto [validity, nullcount] = ArrayData::make_validity_bitmap(list_array_data->length(), std::forward<U>(validity_bitmap));
-            list_array_data->add_buffer(validity);
-            list_array_data->set_null_count(nullcount);
+            auto validity_buffer = std::make_shared<Buffer>(std::forward<U>(validity_bitmap), compact_bool_flag{});
+            list_array_data->add_buffer(validity_buffer);
+            
+            // TODO
+            //list_array_data->set_null_count(nullcount);
 
             // buffer for offsets
             auto offset_buffer = std::make_shared<Buffer>(sizeof(offset_type) * (list_array_data->length() + 1));
@@ -82,7 +83,7 @@ namespace bolt
 
             return list_array_data;
         }
-
+        public:
         template<std::ranges::range T, std::ranges::range U>
         ListArrayImpl(std::shared_ptr<Array> flat_values, T && sizes, U && validity_bitmap)
             : Array(make_list_array_data(flat_values, std::forward<T>(sizes), std::forward<U>(validity_bitmap))),
@@ -113,11 +114,40 @@ namespace bolt
     template<class T>
     class NumericArray : public Array
     {
+        private:
+
+        template<std::ranges::range U,  std::ranges::range V>
+        static std::shared_ptr<ArrayData> make_owned_fixed_size_primite(
+            U && values,
+            V  && validity_bitmap
+        )
+        {
+            constexpr std::size_t dsize = sizeof(T);
+            std::shared_ptr<ArrayData> data = std::make_shared<ArrayData>();
+            data->set_format(primitive_to_format<T>());
+            data->set_length(std::ranges::size(values));
+            data->m_offset = 0; 
+
+            auto validity_buffer = std::make_shared<Buffer>(validity_bitmap, compact_bool_flag{});
+            data->add_buffer(validity_buffer);
+            data->m_null_count = 0; // TODO
+
+            auto buffer = std::make_shared<Buffer>(dsize * data->m_length);
+            data->add_buffer(std::move(buffer));
+
+            auto ptr = static_cast<T *>(data->m_buffers[1]->data());
+            for(std::size_t i = 0; i < data->m_length; i++)
+            {   
+                ptr[i] = static_cast<T>(values[i]);
+            }
+            return data;
+        }
+
         public:
 
         template<std::ranges::range U, std::ranges::range V>
         NumericArray(U && values, V && validity_bitmap)
-            : Array(ArrayData::make_owned_fixed_size_primite<T>(std::forward<U>(values), std::forward<V>(validity_bitmap))),
+            : Array(make_owned_fixed_size_primite(std::forward<U>(values), std::forward<V>(validity_bitmap))),
             p_values(static_cast<T *>(m_data->buffers()[1]->data())+ m_data->offset())
         {
         }
@@ -133,13 +163,67 @@ namespace bolt
     // variable sized binary layout
     template< bool BIG> // either int32_t or int64_t offsets
     class StringArrayImpl : public Array
-    {
+    {   
+        private:
+        template<class OFFSET_TYPE, std::ranges::range T,  std::ranges::range U>
+        static std::shared_ptr<ArrayData> make_owned_string_array(
+            T && values,
+            U && validity_bitmap
+        )
+        {
+            std::shared_ptr<ArrayData> data = std::make_shared<ArrayData>();
+
+            data->set_format(BIG ? std::string("U") : std::string("u"));
+            data->set_length(std::ranges::size(values));
+
+            // validity buffer
+            auto validity_buffer = std::make_shared<Buffer>(validity_bitmap, compact_bool_flag{});
+            data->add_buffer(validity_buffer);
+            //data->m_null_count = 0; // TODO;
+            
+            // offset buffer
+            auto offset_buffer = std::make_shared<Buffer>(sizeof(OFFSET_TYPE) * (data->m_length + 1));
+            data->add_buffer(offset_buffer);
+            OFFSET_TYPE * offset_ptr = static_cast<OFFSET_TYPE *>(data->m_buffers[1]->data());\
+            ArrayData::fill_offset_ptr(values, validity_bitmap, offset_ptr);
+
+            // value buffer
+            auto begin_values = std::ranges::begin(values);
+            auto begin_validity = std::ranges::begin(validity_bitmap);
+            int total_size = 0;
+            while(begin_values != std::ranges::end(values))
+            {
+                if(*begin_validity)
+                {
+                    total_size += begin_values->size();
+                }
+                begin_values++;
+                begin_validity++;
+            }
+
+            auto value_buffer = std::make_shared<Buffer>(total_size);
+            data->add_buffer(value_buffer);
+            char * value_ptr = static_cast<char *>(data->m_buffers[2]->data()); 
+            for(std::size_t i = 0; i < data->m_length; i++)
+            {
+                if(validity_bitmap[i])
+                {
+                    const auto size = values[i].size();
+                    std::copy(values[i].begin(), values[i].end(), value_ptr);
+                    value_ptr += size;
+                }
+            }
+            
+            return data;
+        }
+
+
         public:
         using offset_type = std::conditional_t<BIG, std::int64_t, std::int32_t>;
 
         template<std::ranges::range U, std::ranges::range V>
         StringArrayImpl(U && values, V && validity_bitmap)
-            : Array(ArrayData::make_owned_string_array<offset_type>(std::forward<U>(values), std::forward<V>(validity_bitmap))),
+            : Array(make_owned_string_array<offset_type>(std::forward<U>(values), std::forward<V>(validity_bitmap))),
             p_offsets(static_cast<offset_type *>(m_data->buffers()[1]->data()) + m_data->offset()),
             p_values(static_cast<char *>(m_data->buffers()[2]->data()) + m_data->offset())
         {

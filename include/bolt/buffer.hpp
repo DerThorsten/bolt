@@ -2,9 +2,11 @@
 
 #include <cstddef>
 #include <memory>
+#include <ranges>
 
 namespace bolt
 { 
+    struct compact_bool_flag{};
 
     // this may or may not own the memory
     class Buffer
@@ -13,6 +15,41 @@ namespace bolt
 
         Buffer(std::size_t size);
         Buffer(void * data, std::size_t size);
+
+
+        template<std::ranges::range T>
+        requires (std::is_pod_v<std::ranges::range_value_t<T>> &&  !std::is_same_v<std::ranges::range_value_t<T>, bool>)
+        Buffer(T && data)
+        :   m_data(std::malloc(std::ranges::size(data) * sizeof(std::ranges::range_value_t<T>))), 
+            m_size(std::ranges::size(data) * sizeof(std::ranges::range_value_t<T>)), 
+            m_owned(true)
+        {
+            std::ranges::copy(data, static_cast<std::ranges::range_value_t<T> *>(m_data));
+        }
+
+        template<std::ranges::range T>
+        // convertible to bool
+        requires (std::is_convertible_v<std::ranges::range_value_t<T>, bool>)
+        Buffer(T && data , compact_bool_flag)
+        {
+            const auto size = std::ranges::size(data);
+
+            const auto compact_size = (size + 7) / 8;
+            m_data = std::malloc(compact_size);
+            std::fill_n(static_cast<uint8_t *>(m_data), compact_size, 0);
+            m_size = compact_size;
+            m_owned = true;
+            for(std::size_t i = 0; i < size; i++)
+            {
+                if(data[i])
+                {
+                    static_cast<uint8_t *>(m_data)[i / 8] |= 1 << (i % 8);
+                }
+            }
+        }
+
+
+
         ~Buffer();
         // move constructor
         Buffer(Buffer && other);
