@@ -31,5 +31,29 @@ namespace bolt
         }
     }
 
+    bool Array::is_valid(std::size_t index) const
+    {
+        if(p_validity_bitmap == nullptr)
+        {
+            throw std::runtime_error("validity for union is not yet implemented");
+        }
+        else
+        {
+            return (p_validity_bitmap[index / 8] & (1 << (index % 8))) != 0;
+        }
+    }
+
+    std::size_t Array::size() const
+    {
+        return m_data->m_length  - m_data->m_offset;
+    }
+    std::shared_ptr<ArrayData> Array::array_data() const
+    {
+        return m_data;
+    }
+
+
+    
+
 
 }  // namespace bolt

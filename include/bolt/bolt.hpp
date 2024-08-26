@@ -22,26 +22,10 @@ namespace bolt
         Array(std::shared_ptr<ArrayData> data);
         ~Array() = default;
         
-        bool is_valid(std::size_t index) const
-        {
-            if(p_validity_bitmap == nullptr)
-            {
-                throw std::runtime_error("validity for union is not yet implemented");
-            }
-            else
-            {
-                return (p_validity_bitmap[index / 8] & (1 << (index % 8))) != 0;
-            }
-        }
+        bool is_valid(std::size_t index) const;
 
-        std::size_t size() const
-        {
-            return m_data->m_length  - m_data->m_offset;
-        }
-        std::shared_ptr<ArrayData> array_data() const
-        {
-            return m_data;
-        }
+        std::size_t size() const;
+        std::shared_ptr<ArrayData> array_data() const;s
         protected:
 
         std::shared_ptr<ArrayData> m_data;
