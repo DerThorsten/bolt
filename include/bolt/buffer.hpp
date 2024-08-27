@@ -3,15 +3,38 @@
 #include <cstddef>
 #include <memory>
 #include <ranges>
+#include <algorithm>
+#include <type_traits>
 
 namespace bolt
 { 
     struct compact_bool_flag{};
 
+
+
+
+
+
     // this may or may not own the memory
     class Buffer
     {
         public:
+
+        template<class T> // require pod
+        requires (std::is_pod_v<T> && !std::is_same_v<T, bool>)
+        static std::shared_ptr<Buffer> make_shared(std::size_t size)
+        {
+            const auto needed_size = size * sizeof(T);
+            return std::make_shared<Buffer>(needed_size);
+        }
+
+        template<class T>
+        auto data_as() const
+        {
+            return static_cast<T *>(m_data);
+        }
+
+
 
         Buffer(std::size_t size);
         Buffer(void * data, std::size_t size);
@@ -47,8 +70,6 @@ namespace bolt
                 }
             }
         }
-
-
 
         ~Buffer();
         // move constructor

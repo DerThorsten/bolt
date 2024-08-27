@@ -48,22 +48,13 @@ namespace bolt
             list_array_data->add_child(values->array_data());
 
             // buffer for validity
-            auto validity_buffer = std::make_shared<Buffer>(std::forward<U>(validity_bitmap), compact_bool_flag{});
+            auto validity_buffer = std::make_shared<Buffer>(validity_bitmap, compact_bool_flag{});
             list_array_data->add_buffer(validity_buffer);
             
-            // TODO
-            //list_array_data->set_null_count(nullcount);
 
-            // buffer for offsets
-            auto offset_buffer = std::make_shared<Buffer>(sizeof(offset_type) * (list_array_data->length() + 1));
+            auto offset_buffer = offset_buffer_from_sizes<BIG>(std::forward<T>(sizes), validity_bitmap);
             list_array_data->add_buffer(offset_buffer);
-            auto p_offsets = static_cast<offset_type *>(offset_buffer->data());
-
-            p_offsets[0] = 0;
-            for(std::size_t i = 0; i < list_array_data->length(); i++)
-            {
-                p_offsets[i+1] = p_offsets[i] + sizes[i];
-            }
+            
 
             return list_array_data;
         }
@@ -118,7 +109,6 @@ namespace bolt
 
             auto buffer = std::make_shared<Buffer>(dsize * data->m_length);
             data->add_buffer(std::move(buffer));
-
             auto ptr = static_cast<T *>(data->m_buffers[1]->data());
             for(std::size_t i = 0; i < data->m_length; i++)
             {   
@@ -148,6 +138,8 @@ namespace bolt
     template< bool BIG> // either int32_t or int64_t offsets
     class StringArrayImpl : public Array
     {   
+        public:
+        using offset_type = std::conditional_t<BIG, std::int64_t, std::int32_t>;
         private:
         template<class OFFSET_TYPE, std::ranges::range T,  std::ranges::range U>
         static std::shared_ptr<ArrayData> make_owned_string_array(
@@ -163,17 +155,17 @@ namespace bolt
             // validity buffer
             auto validity_buffer = std::make_shared<Buffer>(validity_bitmap, compact_bool_flag{});
             data->add_buffer(validity_buffer);
-            //data->m_null_count = 0; // TODO;
-            
+            auto validity_range = packed_bit_range(validity_buffer->template data_as<uint8_t>(), data->length());
+
             // offset buffer
-            auto offset_buffer = std::make_shared<Buffer>(sizeof(OFFSET_TYPE) * (data->m_length + 1));
-            data->add_buffer(offset_buffer);
-            OFFSET_TYPE * offset_ptr = static_cast<OFFSET_TYPE *>(data->m_buffers[1]->data());\
-            ArrayData::fill_offset_ptr(values, validity_bitmap, offset_ptr);
+            data->add_buffer(offset_buffer_from_sizes<BIG>(
+                values | std::views::transform([](auto && s) { return s.size(); }),
+                validity_range
+            ));
 
             // value buffer
             auto begin_values = std::ranges::begin(values);
-            auto begin_validity = std::ranges::begin(validity_bitmap);
+            auto begin_validity = std::ranges::begin(validity_range);
             int total_size = 0;
             while(begin_values != std::ranges::end(values))
             {
@@ -203,8 +195,7 @@ namespace bolt
 
 
         public:
-        using offset_type = std::conditional_t<BIG, std::int64_t, std::int32_t>;
-
+        
         template<std::ranges::range U, std::ranges::range V>
         StringArrayImpl(U && values, V && validity_bitmap)
             : Array(make_owned_string_array<offset_type>(std::forward<U>(values), std::forward<V>(validity_bitmap))),

@@ -18,6 +18,50 @@ namespace bolt
     class Array;
 
 
+    // packed bit range from ptr
+    inline auto packed_bit_range(uint8_t * ptr, std::size_t length)
+    {
+        // iota iterator
+        return std::views::iota(std::size_t(0), length) | std::views::transform([ptr](std::size_t i) -> bool
+        {
+            const auto byte = i / 8;
+            const auto bit = i % 8;
+            return ptr[byte] & (1 << bit);
+        });
+    }
+
+
+    template<bool BIG, std::ranges::range SIZES, std::ranges::range VALIDITY>
+    std::shared_ptr<Buffer> offset_buffer_from_sizes(SIZES && sizes, VALIDITY && validity)
+    {
+        using offset_type = std::conditional_t<BIG, std::int64_t, std::int32_t>;
+        const auto length = std::ranges::size(sizes);
+        auto offset_buffer = Buffer::make_shared<offset_type>(length + 1);
+        auto p_offsets = offset_buffer-> template data_as<offset_type>();
+        
+        auto sizes_iter_begin = std::ranges::begin(sizes);
+        auto validity_iter_begin = std::ranges::begin(validity);
+
+        p_offsets[0] = 0;
+        for(std::size_t i=0; i < length; ++i)
+        {
+            if(*validity_iter_begin)
+            {
+                p_offsets[i + 1] = p_offsets[i] + *sizes_iter_begin;
+            }
+            else
+            {
+                p_offsets[i + 1] = p_offsets[i];
+            }
+            sizes_iter_begin++;
+            validity_iter_begin++;
+        }
+        return offset_buffer;    
+    }
+
+
+
+
     class ArrayData
     {   
         public: 
