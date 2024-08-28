@@ -45,6 +45,14 @@ namespace bolt
             return value;
         }
 
+        auto inline value_range() const
+        {
+            return std::views::iota(std::size_t(0), this->size()) | std::views::transform([this](std::size_t i) -> Value
+            {
+                return (*this)[i];
+            });
+        }
+
         protected:
 
         std::shared_ptr<ArrayData> m_data;

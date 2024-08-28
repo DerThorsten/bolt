@@ -252,4 +252,35 @@ namespace bolt
      
     }
 
+    TEST_CASE("TestRange")
+    {   
+        std::vector<int> flat_data = {1, 2, 3, 4, 5};
+        std::vector<uint8_t> flat_validity = {1,1,1,0,1};
+        auto flat_values = std::make_shared<NumericArray<int>>(flat_data, flat_validity);
+
+        // the list array
+        std::vector<int> sizes = {2, 1, 2};
+        std::vector<uint8_t> validity = {1,1,1};
+        std::shared_ptr<Array> list_array = std::make_shared<BigListArray>(flat_values, sizes, validity);
+
+        int i =0;
+        int flat_i = 0;
+        for(auto value : list_array->value_range())
+        {
+            // here we assue me know that the value is ListOfOptionalValues
+            auto & actual_typed_value = std::get<ListOfOptionalValues>(value);
+            CHECK(actual_typed_value.size() == sizes[i]);
+            for(std::size_t j = 0; j < actual_typed_value.size(); j++)
+            {
+                // direct access
+                CHECK(std::get<int>(actual_typed_value[j]) == flat_data[flat_i]);
+                ++flat_i;
+            }
+            
+            ++i;
+
+        }   
+
+    }
+
 }  // namespace bolt
