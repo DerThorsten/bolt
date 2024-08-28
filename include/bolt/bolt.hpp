@@ -36,7 +36,7 @@ namespace bolt
         template<class VISITOR>
         void visit(VISITOR && visitor) const;
 
-        Value operator[](std::size_t index) const{
+        inline Value operator[](std::size_t index) const{
             Value value;
             this->visit([index,&value](const auto & array)
             {
