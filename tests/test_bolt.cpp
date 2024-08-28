@@ -194,4 +194,62 @@ namespace bolt
 
     }
 
+
+    TEST_CASE("RuntimeGenericValues--BigListArray[int]")
+    {
+        // the inner array
+        std::vector<int> flat_data = {1, 2, 3, 4, 5};
+        std::vector<uint8_t> flat_validity = {1,1,1,0,1};
+        auto flat_values = std::make_shared<NumericArray<int>>(flat_data, flat_validity);
+
+        // the list array
+        std::vector<int> sizes = {2, 1, 2};
+        std::vector<uint8_t> validity = {1,1,1};
+        std::shared_ptr<Array> list_array = std::make_shared<BigListArray>(flat_values, sizes, validity);
+
+        auto value = list_array->operator[](0);
+
+        bool visited = false;
+        int flat_index = 0;
+
+
+        // lets visit it!
+        std::visit([&](auto && actual_typed_value)
+        {
+            using T = std::decay_t<decltype(actual_typed_value)>;
+            if constexpr (std::is_same_v<T, ListOfOptionalValues>)
+            {
+                visited = true;
+                CHECK(actual_typed_value.size() == 2);
+                for(std::size_t i = 0; i < actual_typed_value.size(); i++)
+                {
+                    // direct access
+                    CHECK(std::get<int>(actual_typed_value[i]) == flat_data[flat_index]);
+
+                    // inner visitor in case we do not know inner type
+                    bool visited_inner = false;
+                    std::visit([&](auto && inner_typed_value){
+                        using InnerT = std::decay_t<decltype(inner_typed_value)>;
+                        if constexpr (std::is_same_v<InnerT, int>)
+                        {
+                            CHECK(inner_typed_value == flat_data[flat_index]);
+                            visited_inner = true;
+                        }
+                        else
+                        {
+                            CHECK(false);
+                        }
+                    }, actual_typed_value[i]);
+                    CHECK(visited_inner);
+                    ++flat_index;
+                }
+            }
+            else{
+                CHECK(false);
+            }
+        }, value);
+        CHECK(visited);
+     
+    }
+
 }  // namespace bolt
