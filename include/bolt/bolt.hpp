@@ -10,6 +10,7 @@
 #include <bolt/format.hpp>
 #include <bolt/buffer.hpp>
 #include <bolt/array_data.hpp>
+#include <bolt/value.hpp>
 
 namespace bolt
 { 
@@ -34,6 +35,15 @@ namespace bolt
 
         template<class VISITOR>
         void visit(VISITOR && visitor) const;
+
+        Value operator[](std::size_t index) const{
+            Value value;
+            this->visit([index,&value](const auto & array)
+            {
+                value = array[index];
+            });
+            return value;
+        }
 
         protected:
 
@@ -86,6 +96,17 @@ namespace bolt
             return m_flat_values;
         }
 
+        ListOfOptionalValues  operator[](std::size_t index) const
+        {   
+            ListOfOptionalValues list;
+            for(auto i=0; i<this->list_size(index); i++)
+            {
+                list.push_back(m_flat_values->operator[](p_offsets[index] + i));
+            }
+            return list;
+
+        }
+
         private:
         
         std::shared_ptr<Array> m_flat_values;
@@ -134,7 +155,7 @@ namespace bolt
             p_values(static_cast<T *>(m_data->buffers()[1]->data())+ m_data->offset())
         {
         }
-        const T & operator[](std::size_t index) const
+        T operator[](std::size_t index) const
         {
             return p_values[index];
         }
