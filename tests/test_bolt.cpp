@@ -100,9 +100,27 @@ namespace bolt
         std::vector<uint8_t> validity = {1,1,1};
         BigListArray list_array(flat_values, sizes, validity);
 
+
+        // get child as std::shared_ptr<Array>
         auto child_array = list_array.values();
         CHECK(child_array->size() == 5);
 
+        // use visitor when child type is unknown
+        bool visited = false;
+        child_array->visit([&visited](auto & array)
+        {
+            CHECK(array.size() == 5);
+            CHECK(array.is_valid(0));
+            CHECK(array.is_valid(1));
+            CHECK(array.is_valid(2));
+            CHECK(!array.is_valid(3));   
+            CHECK(array.is_valid(4));
+            visited = true;
+        });
+        CHECK(visited);
+
+
+        // cast into known type
         auto child_typed = std::static_pointer_cast<NumericArray<int>>(child_array);
         CHECK(child_typed->size() == 5);
         CHECK(child_typed->is_valid(0));
@@ -115,6 +133,65 @@ namespace bolt
         {
             CHECK(list_array.list_size(i) == sizes[i]);
         }
+    }
+
+
+    class TestVisitor{
+        public:
+        void operator()(const NumericArray<int> & array)
+        {
+            CHECK(array.size() == 5);
+            CHECK(array.is_valid(0));
+            CHECK(array.is_valid(1));
+            CHECK(array.is_valid(2));
+            CHECK(!array.is_valid(3));   
+            CHECK(array.is_valid(4));
+            visited = true;
+        }
+
+        void operator()(const Array & array)
+        {
+            CHECK(false);
+        }
+        bool visited = false;
+    };
+
+    TEST_CASE("Visitor")
+    {
+        std::shared_ptr<Array> detyped_array = std::make_shared<NumericArray<int>>(std::vector<int>{1, 2, 3, 4, 5}, std::vector<uint8_t>{1,1,1,0,1});
+        bool visited = false;
+        TestVisitor visitor;
+        detyped_array->visit(visitor);
+        CHECK(visitor.visited);
+    }
+    TEST_CASE("inline-labmda-visitor")
+    {
+        std::shared_ptr<Array> detyped_array = std::make_shared<NumericArray<uint8_t>>(std::vector<uint8_t>{1, 2, 3, 4, 5}, std::vector<uint8_t>{1,1,1,0,1});
+        
+        detyped_array->visit([](const auto & array)
+        {
+            using T = std::decay_t<decltype(array)>;
+            if constexpr (std::is_same_v<T, NumericArray<uint8_t>>)
+            {
+                CHECK(array.size() == 5);
+                CHECK(array.is_valid(0));
+                CHECK(array.is_valid(1));
+                CHECK(array.is_valid(2));
+                CHECK(!array.is_valid(3));   
+                CHECK(array.is_valid(4));
+
+                CHECK(array[0] == 1);
+                CHECK(array[1] == 2);
+                //CHECK(array[2] == 3);
+                CHECK(array[3] == 4);
+                CHECK(array[4] == 5);
+            }
+            else
+            {
+                CHECK(false);
+            }
+        });
+
     }
 
 }  // namespace bolt

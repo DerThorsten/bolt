@@ -20,12 +20,21 @@ namespace bolt
 
         Array(ArrayData && data);
         Array(std::shared_ptr<ArrayData> data);
-        ~Array() = default;
+        virtual ~Array() = default;
+
+        // delete copy and move semantics
+        Array(const Array &) = delete;
+        Array & operator=(const Array &) = delete;
+        Array(Array &&) = delete;
         
         bool is_valid(std::size_t index) const;
 
         std::size_t size() const;
         std::shared_ptr<ArrayData> array_data() const;
+
+        template<class VISITOR>
+        void visit(VISITOR && visitor) const;
+
         protected:
 
         std::shared_ptr<ArrayData> m_data;
@@ -220,5 +229,59 @@ namespace bolt
     using BigStringArray = StringArrayImpl<true>;
 
 
+
+    template<class VISITOR>
+    void Array::visit(VISITOR && visitor) const
+    {
+        const auto & format = m_data->format();
+        const auto format_size = format.size();
+        if(format_size == 1)
+        {
+            const auto format_char = format[0];
+            switch(format_char)
+            {   
+
+                #define VISIT_NUMERIC(CHAR, TYPE) \
+                case(CHAR): \
+                { \
+                    const auto & casted = static_cast<const NumericArray<TYPE> * >(this); \
+                    visitor(*casted); \
+                    break; \
+                }
+                VISIT_NUMERIC('b', bool)
+                VISIT_NUMERIC('c', char)
+                VISIT_NUMERIC('C', unsigned char)
+                VISIT_NUMERIC('s', std::int16_t)
+                VISIT_NUMERIC('S', std::uint16_t)
+                VISIT_NUMERIC('i', std::int32_t)
+                VISIT_NUMERIC('I', std::uint32_t)
+                VISIT_NUMERIC('l', std::int64_t)
+                VISIT_NUMERIC('L', std::uint64_t)
+                VISIT_NUMERIC('f', float)
+                VISIT_NUMERIC('d', double)
+                #undef VISIT_NUMERIC
+            }
+        }
+        else if( format == "+l"){
+            const auto & casted = static_cast<const ListArray * >(this);
+            visitor(*casted);
+        }
+        else if( format == "+L"){
+            const auto & casted = static_cast<const BigListArray * >(this);
+            visitor(*casted);
+        }
+        else if( format == "u"){
+            const auto & casted = static_cast<const StringArray * >(this);
+            visitor(*casted);
+        }
+        else if( format == "U"){
+            const auto & casted = static_cast<const BigStringArray * >(this);
+            visitor(*casted);
+        }
+        else
+        {
+            throw std::runtime_error("Unknown format");
+        }
+    }
 
 }
