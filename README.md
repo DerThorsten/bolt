@@ -1,1 +1,1 @@
-Bolt, lighter than Arrow!
+Bolt, the better Arrow
