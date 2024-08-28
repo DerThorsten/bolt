@@ -265,15 +265,23 @@ namespace bolt
 
         int i =0;
         int flat_i = 0;
-        for(auto value : list_array->value_range())
-        {
+        for(auto list_variant : list_array->value_range())
+        {   
+            CHECK(list_array->is_valid(i));
+            CHECK(has_value(list_variant));
+            
+            
+
             // here we assue me know that the value is ListOfOptionalValues
-            auto & actual_typed_value = std::get<ListOfOptionalValues>(value);
+            auto & actual_typed_value = std::get<ListOfOptionalValues>(list_variant);
             CHECK(actual_typed_value.size() == sizes[i]);
             for(std::size_t j = 0; j < actual_typed_value.size(); j++)
             {
                 // direct access
-                CHECK(std::get<int>(actual_typed_value[j]) == flat_data[flat_i]);
+                if(has_value(actual_typed_value[j]))
+                {
+                    CHECK(std::get<int>(actual_typed_value[j]) == flat_data[flat_i]);
+                }
                 ++flat_i;
             }
             

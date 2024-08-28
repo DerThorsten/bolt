@@ -29,6 +29,8 @@ namespace bolt
         std::monostate
     >;
 
+    using Value = ValueVariantType;
+
     class ListOfOptionalValues : public std::vector<ValueVariantType>
     {
         public:
@@ -43,20 +45,10 @@ namespace bolt
 
     };
 
-    class Value : public ValueVariantType
+    inline bool has_value( Value & value)
     {
-    public:
-        using ValueVariantType::ValueVariantType;
-
-        // use constructor of base class
-        using ValueVariantType::operator=;
-
-
-        bool has_value() const
-        {
-            return !std::holds_alternative<std::monostate>(*this);
-        }
-    };
+        return !std::holds_alternative<std::monostate>(value);
+    }
 
     using missing_value_t = std::monostate;
     

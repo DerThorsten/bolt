@@ -40,7 +40,13 @@ namespace bolt
             Value value;
             this->visit([index,&value](const auto & array)
             {
-                value = array[index];
+                if(array.is_valid(index))
+                {
+                    value = array[index];
+                }
+                else{
+                    value = missing_value_t{};
+                }
             });
             return value;
         }
@@ -109,7 +115,16 @@ namespace bolt
             ListOfOptionalValues list;
             for(auto i=0; i<this->list_size(index); i++)
             {
-                list.push_back(m_flat_values->operator[](p_offsets[index] + i));
+                const auto flat_index = p_offsets[index] + i;
+                const auto has_value = m_flat_values->is_valid(flat_index);
+                if(has_value)
+                {
+                    list.push_back(m_flat_values->operator[](flat_index));
+                }
+                else
+                {
+                    list.push_back(missing_value_t{});
+                }
             }
             return list;
 
