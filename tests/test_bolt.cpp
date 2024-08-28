@@ -195,7 +195,7 @@ namespace bolt
     }
 
 
-    TEST_CASE("RuntimeGenericValues--BigListArray[int]")
+    TEST_CASE("DetypedVapueTypeBigListArray[int]")
     {
         // the inner array
         std::vector<int> flat_data = {1, 2, 3, 4, 5};
