@@ -77,6 +77,18 @@ namespace bolt
         // move assignment
         ArrayData & operator=(ArrayData && other) = default;
 
+
+        inline ArrayData(const char format, std::int64_t length, std::int64_t offset=0)
+        : ArrayData(std::string(1, format), length, offset)
+        {
+        }
+        inline ArrayData(const std::string & format, std::int64_t length, std::int64_t offset=0)
+        : m_format(format), m_length(length), m_offset(offset)
+        {
+        }
+        
+            
+
         inline std::size_t size() const
         {
             return m_length - m_offset;

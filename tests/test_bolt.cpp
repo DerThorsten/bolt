@@ -50,11 +50,11 @@ namespace bolt
         std::vector<uint8_t> validity = {1,1,1,0,1};
         NumericArray<int> array(vec, validity);
         CHECK(array.size() == 5);
-        CHECK(array[0] == 1);
-        CHECK(array[1] == 2);
-        CHECK(array[2] == 3);
-        CHECK(array[3] == 4);
-        CHECK(array[4] == 5);
+        CHECK(array.raw_value(0) == 1);
+        CHECK(array.raw_value(1) == 2);
+        CHECK(array.raw_value(2) == 3);
+        CHECK(array.raw_value(3) == 4);
+        CHECK(array.raw_value(4) == 5);
         
         CHECK(array.is_valid(0));
         CHECK(array.is_valid(1));
@@ -69,12 +69,12 @@ namespace bolt
         std::vector<uint8_t> validity = {1,1,1,1,0,1};
         BigStringArray array(vec, validity);
         CHECK(array.size() == 6);
-        CHECK(array[0] == "hello");
-        CHECK(array[1] == "world");
-        CHECK(array[2] == "bolt");
-        CHECK(array[3] == "is");
-        CHECK(array[4] == "");
-        CHECK(array[5] == "awesome");
+        CHECK(array.raw_value(0) == "hello");
+        CHECK(array.raw_value(1) == "world");
+        CHECK(array.raw_value(2) == "bolt");
+        CHECK(array.raw_value(3) == "is");
+        CHECK(array.raw_value(4) == "");
+        CHECK(array.raw_value(5) == "awesome");
 
         // check the validity
         CHECK(array.is_valid(0));
@@ -180,11 +180,11 @@ namespace bolt
                 CHECK(!array.is_valid(3));   
                 CHECK(array.is_valid(4));
 
-                CHECK(array[0] == 1);
-                CHECK(array[1] == 2);
-                //CHECK(array[2] == 3);
-                CHECK(array[3] == 4);
-                CHECK(array[4] == 5);
+                CHECK(array.raw_value(0) == 1);
+                CHECK(array.raw_value(1) == 2);
+                //CHECK(array.raw_value(2) == 3);
+                CHECK(array.raw_value(3) == 4);
+                CHECK(array.raw_value(4) == 5);
             }
             else
             {
@@ -195,7 +195,7 @@ namespace bolt
     }
 
 
-    TEST_CASE("DetypedVapueTypeBigListArray[int]")
+    TEST_CASE("DetypedValueTypeBigListArray[int]")
     {
         // the inner array
         std::vector<int> flat_data = {1, 2, 3, 4, 5};
@@ -207,7 +207,7 @@ namespace bolt
         std::vector<uint8_t> validity = {1,1,1};
         std::shared_ptr<Array> list_array = std::make_shared<BigListArray>(flat_values, sizes, validity);
 
-        auto value = list_array->operator[](0);
+        auto value = list_array->raw_value(0);
 
         bool visited = false;
         int flat_index = 0;
@@ -217,20 +217,20 @@ namespace bolt
         std::visit([&](auto && actual_typed_value)
         {
             using T = std::decay_t<decltype(actual_typed_value)>;
-            if constexpr (std::is_same_v<T, ListOfOptionalValues>)
+            if constexpr (std::is_same_v<T, ListValue>)
             {
                 visited = true;
                 CHECK(actual_typed_value.size() == 2);
                 for(std::size_t i = 0; i < actual_typed_value.size(); i++)
                 {
                     // direct access
-                    CHECK(std::get<int>(actual_typed_value[i]) == flat_data[flat_index]);
+                    CHECK(std::get<std::optional<int>>(actual_typed_value[i]) == flat_data[flat_index]);
 
                     // inner visitor in case we do not know inner type
                     bool visited_inner = false;
                     std::visit([&](auto && inner_typed_value){
                         using InnerT = std::decay_t<decltype(inner_typed_value)>;
-                        if constexpr (std::is_same_v<InnerT, int>)
+                        if constexpr (std::is_same_v<InnerT, std::optional<int>>)
                         {
                             CHECK(inner_typed_value == flat_data[flat_index]);
                             visited_inner = true;
@@ -272,15 +272,15 @@ namespace bolt
             
             
 
-            // here we assue me know that the value is ListOfOptionalValues
-            auto & actual_typed_value = std::get<ListOfOptionalValues>(list_variant);
+            // here we assue me know that the value is ListValue
+            auto & actual_typed_value = std::get<ListValue>(list_variant);
             CHECK(actual_typed_value.size() == sizes[i]);
             for(std::size_t j = 0; j < actual_typed_value.size(); j++)
             {
                 // direct access
                 if(has_value(actual_typed_value[j]))
                 {
-                    CHECK(std::get<int>(actual_typed_value[j]) == flat_data[flat_i]);
+                    CHECK(std::get<std::optional<int>>(actual_typed_value[j]) == flat_data[flat_i]);
                 }
                 ++flat_i;
             }
@@ -290,5 +290,170 @@ namespace bolt
         }   
 
     }
+    TEST_CASE("StructArray")
+    {
+    
+        std::vector<uint8_t> validity = {1,1,1,1,1};
+        std::vector<int> data_foo = {1, 2, 3, 4, 5};
+        auto array_foo = std::make_shared<NumericArray<int>>(data_foo, validity);
+
+        std::vector<uint8_t> data_bar = {6, 7, 8, 9, 10};
+        auto array_bar = std::make_shared<NumericArray<uint8_t>>(data_bar, validity);
+
+        std::vector<std::string> data_foobar = {"hello" , "world", "bolt", "is", "awesome"};
+        std::shared_ptr<Array> array_foobar= std::make_shared<BigStringArray>(data_foobar, validity);
+        {
+            bool visited = false;
+            bool visited_any = false;
+            array_foobar->visit([&](auto & array)
+            {
+                visited_any = true;
+                using T = std::decay_t<decltype(array)>;
+                if constexpr (std::is_same_v<T, BigStringArray>)
+                {
+                    visited = true;
+                    CHECK(array.size() == 5);
+                    CHECK(array.is_valid(0));
+                    CHECK(array.is_valid(1));
+                    CHECK(array.is_valid(2));
+                    CHECK(array.is_valid(3));
+                    CHECK(array.is_valid(4));
+                }
+                else
+                {
+                    CHECK(false);
+                }
+            });
+            CHECK(visited_any);
+            CHECK(visited);
+        }
+
+        CHECK(array_foobar->is_valid(0));
+        CHECK(array_foobar->is_valid(1));
+        CHECK(array_foobar->is_valid(2));
+        CHECK(array_foobar->is_valid(3));
+        CHECK(array_foobar->is_valid(4));
+
+
+        std::vector<std::shared_ptr<Array>> arrays = {array_foo, array_bar, array_foobar};
+        std::vector<std::string> names = {"foo", "bar", "foobar"};
+
+        auto struct_array = std::make_shared<StructArray>(arrays, names, validity);
+
+
+        bool visited = false;
+        struct_array->field_values()[2]->visit([&](auto & array)
+        {
+            using T = std::decay_t<decltype(array)>;
+            if constexpr (std::is_same_v<T, BigStringArray>)
+            {
+                visited = true;
+                CHECK(array.size() == 5);
+                CHECK(array.is_valid(0));
+                CHECK(array.is_valid(1));
+                CHECK(array.is_valid(2));
+                CHECK(array.is_valid(3));
+                CHECK(array.is_valid(4));
+            }
+            else
+            {
+                CHECK(false);
+            }
+        });
+        CHECK(visited);
+
+        CHECK(struct_array->size() == 5);
+        const std::vector<std::string> & field_names = struct_array->field_names();
+        CHECK(field_names.size() == 3);
+        CHECK(field_names[0] == "foo");
+        CHECK(field_names[1] == "bar");
+        CHECK(field_names[2] == "foobar");
+
+        for(std::size_t i = 0; i <5; i++)
+        {
+            
+            auto struct_value = struct_array->raw_value(i);
+            CHECK(struct_value.size() == 3);
+            CHECK(struct_value.field_names().size() == 3);
+            CHECK(struct_value.field_names()[0] == "foo");
+            CHECK(struct_value.field_names()[1] == "bar");
+            CHECK(struct_value.field_names()[2] == "foobar");
+
+            CHECK(struct_value[0].has_value());
+            CHECK(struct_value[1].has_value());
+            CHECK(struct_value[2].has_value());
+
+            CHECK(std::get<std::optional<int>>(struct_value[0]).value() == data_foo[i]);
+            CHECK(std::get<std::optional<uint8_t>>(struct_value[1]).value() == data_bar[i]);
+            CHECK(std::get<std::optional<std::string_view>>(struct_value[2]).value() == data_foobar[i]);
+        }
+        
+    }
+
+    TEST_CASE("TestCrtpGenerated")
+    {   
+        std::vector<int> flat_data = {1, 2, 3, 4, 5};
+        std::vector<uint8_t> flat_validity = {1,1,1,0,1};
+        auto flat_values = std::make_shared<NumericArray<int>>(flat_data, flat_validity);
+
+        // the list array
+        std::vector<int> sizes = {2, 1, 2};
+        std::vector<uint8_t> validity = {1,1,0};
+        auto list_array = std::make_shared<BigListArray>(flat_values, sizes, validity);
+
+
+        // get optional value
+        CHECK(list_array->optional_value(0).has_value());
+        CHECK(list_array->optional_value(1).has_value());
+        CHECK(!list_array->optional_value(2).has_value());
+
+        SUBCASE("value-range"){
+            // value-range
+            auto i=0;
+            for(auto value : list_array->value_range())
+            {
+                if(i == 0)
+                {
+                    CHECK(value.size() == 2);
+                }
+                else if(i == 1)
+                {
+                    CHECK(value.size() == 1);
+                }
+                else if(i == 2)
+                {
+                    
+                }
+                ++i;
+            }
+        }
+        SUBCASE("opt-value-range")
+        {
+            // opt-value-range
+            auto i=0;
+            for(auto value : list_array->optional_value_range())
+            {
+                if(i == 0)
+                {
+                    CHECK(value.has_value());
+                    CHECK(value.value().size() == 2);
+                }
+                else if(i == 1)
+                {
+                    CHECK(value.has_value());
+                    CHECK(value.value().size() == 1);
+                }
+                else if(i == 2)
+                {
+                    CHECK(!value.has_value());
+                }
+                ++i;
+            }
+        } 
+
+
+
+    }
+
 
 }  // namespace bolt
